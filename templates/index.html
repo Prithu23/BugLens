@@ -162,7 +162,7 @@
 
       if (data.detections.length === 0) {
         detections.innerHTML = '<p class="empty-msg">No pests detected</p>';
-        status.textContent = 'Done — image looks clean!';
+        status.textContent = 'YIPPEY-KAY-YAY image looks clean!';
       } else {
         detections.innerHTML = data.detections.map(d => `
           <div class="det-item">
@@ -172,7 +172,7 @@
         status.textContent = `Found ${data.detections.length} detection(s)`;
       }
     } catch (err) {
-      status.textContent = 'Request failed. Is the server running?';
+      status.textContent = 'Request failed unfortunately, now back to dillydalling';
     } finally {
       detectBtn.disabled = false;
     }
