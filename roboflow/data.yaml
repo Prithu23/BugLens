@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 9
+names: ['aphids', 'armyworm', 'beetle', 'bollworm', 'grasshopper', 'mites', 'mosquito', 'sawfly', 'stem_borer']
+
+roboflow:
+  workspace: prithika-tfgu5
+  project: prithika-tfgu5
+  version: dataset
+  license: Private
+  url: https://app.roboflow.com/prithika-tfgu5/prithika-tfgu5/dataset

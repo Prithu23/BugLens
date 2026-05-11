@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BugLens - Pest Detector</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; min-height: 100vh; }
+
+  header { background: #1a1d27; padding: 18px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #2a2d3e; }
+  header h1 { font-size: 1.5rem; color: #7ecb7e; }
+  header span { font-size: 0.85rem; color: #666; }
+
+  main { max-width: 960px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  .card { background: #1a1d27; border: 1px solid #2a2d3e; border-radius: 12px; padding: 24px; }
+  .card h2 { font-size: 1rem; color: #aaa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  #drop-zone {
+    border: 2px dashed #3a3d50;
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #drop-zone:hover, #drop-zone.drag-over { border-color: #7ecb7e; background: #1e2530; }
+  #drop-zone svg { opacity: 0.4; margin-bottom: 12px; }
+  #drop-zone p { color: #666; font-size: 0.9rem; }
+  #drop-zone p span { color: #7ecb7e; }
+
+  #file-input { display: none; }
+
+  #preview { width: 100%; border-radius: 8px; margin-top: 16px; display: none; }
+
+  button#detect-btn {
+    margin-top: 16px;
+    width: 100%;
+    padding: 12px;
+    background: #7ecb7e;
+    color: #0f1117;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: none;
+  }
+  button#detect-btn:hover { background: #5cb85c; }
+  button#detect-btn:disabled { background: #3a3d50; color: #666; cursor: not-allowed; }
+
+  #result-img { width: 100%; border-radius: 8px; display: none; }
+
+  #detections { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .det-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0f1117;
+    border-radius: 8px;
+    padding: 10px 14px;
+    border-left: 3px solid #7ecb7e;
+  }
+  .det-label { font-weight: 600; text-transform: capitalize; }
+  .det-conf { font-size: 0.85rem; color: #7ecb7e; }
+
+  #status { margin-top: 12px; font-size: 0.85rem; color: #666; text-align: center; min-height: 20px; }
+  .empty-msg { color: #444; font-size: 0.9rem; text-align: center; padding: 20px 0; }
+
+  .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid #444; border-top-color: #7ecb7e; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7ecb7e" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+  <h1>BugLens</h1>
+  <span>Pest Detection</span>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Upload Image</h2>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#7ecb7e" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p>Drop image here or <span>click to browse</span></p>
+      <p style="margin-top:6px;font-size:0.8rem">JPG, PNG, WEBP supported</p>
+    </div>
+    <input type="file" id="file-input" accept="image/*">
+    <img id="preview" alt="Preview">
+    <button id="detect-btn" onclick="detect()">Detect Pests</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Results</h2>
+    <img id="result-img" alt="Detection result">
+    <div id="detections"><p class="empty-msg">Upload an image and click Detect</p></div>
+  </div>
+</main>
+
+<script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const preview = document.getElementById('preview');
+  const detectBtn = document.getElementById('detect-btn');
+  const resultImg = document.getElementById('result-img');
+  const detections = document.getElementById('detections');
+  const status = document.getElementById('status');
+  let selectedFile = null;
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadFile(f);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  function loadFile(file) {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      detectBtn.style.display = 'block';
+      resultImg.style.display = 'none';
+      detections.innerHTML = '<p class="empty-msg">Click Detect to analyze</p>';
+      status.textContent = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function detect() {
+    if (!selectedFile) return;
+    detectBtn.disabled = true;
+    status.innerHTML = '<span class="loader"></span>Analyzing...';
+    detections.innerHTML = '';
+    resultImg.style.display = 'none';
+
+    const form = new FormData();
+    form.append('image', selectedFile);
+
+    try {
+      const res = await fetch('/detect', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (data.error) { status.textContent = 'Error: ' + data.error; return; }
+
+      resultImg.src = 'data:image/jpeg;base64,' + data.image;
+      resultImg.style.display = 'block';
+
+      if (data.detections.length === 0) {
+        detections.innerHTML = '<p class="empty-msg">No pests detected</p>';
+        status.textContent = 'Done — image looks clean!';
+      } else {
+        detections.innerHTML = data.detections.map(d => `
+          <div class="det-item">
+            <span class="det-label">${d.label}</span>
+            <span class="det-conf">${d.confidence}%</span>
+          </div>`).join('');
+        status.textContent = `Found ${data.detections.length} detection(s)`;
+      }
+    } catch (err) {
+      status.textContent = 'Request failed. Is the server running?';
+    } finally {
+      detectBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
